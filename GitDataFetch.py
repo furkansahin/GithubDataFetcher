@@ -1,19 +1,9 @@
+import getpass
 import urllib.request
 import json
 import psycopg2
 from collections import deque
-
-
-def fetch_from_mult(url, key):
-    out_arr = []
-
-    response = urllib.request.urlopen(url)
-    output = response.read().decode('utf-8')
-    _json = json.loads(output)
-
-    for each in _json:
-        out_arr.append(each['login'])
-    return out_arr
+import github3
 
 
 def serialize_arr(array):
@@ -28,95 +18,141 @@ def serialize_arr(array):
 
 
 def main():
-    limit = 10000
-
-
+    G = github3.login(username="furkansahin", password="X", token="X",
+                      two_factor_callback=None)
     # connect to db
     connect_str = "dbname='GithubData' host='localhost'"
     conn = psycopg2.connect(connect_str)
     cursor = conn.cursor()
 
-    password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-    top_level_url = "https://api.github.com/"
-    password_mgr.add_password(None, top_level_url, 'furkansahin', '707494Fb')
-
-    handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
-
-    opener = urllib.request.build_opener(handler)
-
-    # use the opener to fetch a URL
-    opener.open("https://api.github.com/users/furkansahin")
-
-    # Install the opener.
-    # Now all calls to urllib.request.urlopen use our opener.
-    urllib.request.install_opener(opener)
-
-    login = 'furkansahin'
+    login = "furkansahin"
     graph = set()
     br_queue = deque()
     br_queue.append(login)
 
     while len(br_queue) != 0:
-        login = br_queue.popleft()
+        login = br_queue.pop()
 
         if login not in graph:
+            followers = []
+            following = []
+            count = 0
+
+            try:
+                iterator_follower = G.iter_followers(login)
+            except github3.models.GitHubError:
+                uname = input("uname: ")
+                upass = input("upass: ")
+                G = github3.login(username=uname, password=upass, token="X",
+                                  two_factor_callback=None)
+                iterator_follower = G.iter_followers(login)
+
+            bool = False
+
+            # weird!
+
+            for f in iterator_follower:
+                followers.append(str(f))
+                count += 1
+                if count > 350:
+                    bool = True
+                    break
+
+            try:
+                iterator_following = G.iter_following(login)
+            except github3.models.GitHubError:
+                uname = input("uname: ")
+                upass = input("upass: ")
+                G = github3.login(username=uname, password=upass, token="b9a4f10e9eda529d094837981b931a2aea5ace99",
+                                  two_factor_callback=None)
+                iterator_following = G.iter_following(login)
+
+
+            count = 0
+            for f in iterator_following:
+                following.append(str(f))
+                count += 1
+                if count > 350:
+                    bool = True
+                    break
+
+            if bool:
+                graph.add(login)
+                print(login + " ~~~~~~~~~~~~~~ ")
+                continue
+
+            try:
+                iterator_orgs = G.iter_orgs(login)
+            except github3.models.GitHubError:
+                uname = input("uname: ")
+                upass = input("upass: ")
+                G = github3.login(username=uname, password=upass, token="X",
+                                  two_factor_callback=None)
+                iterator_orgs = G.iter_orgs(login)
+
+            organizations = []
+
+            for f in iterator_orgs:
+                organizations.append(str(f))
+
             graph.add(login)
 
-            response = urllib.request.urlopen("https://api.github.com/users/" + login)
-            output = response.read().decode('utf-8')
-
-            the_root = json.loads(output)
-            followers_url = the_root['followers_url']
-            following_url = the_root['following_url'][:-13]
-            organizations_url = the_root['organizations_url']
-            repos_url = the_root['repos_url']
-
-            login = the_root['login']
-            followers = fetch_from_mult(followers_url, "login")
-            following = fetch_from_mult(following_url, "login")
             organization_map = {}
-            languages_map = {}
+            languages_set = set()
 
-            br_queue.extend(followers)
-            br_queue.extend(following)
+            br_queue.extendleft(followers)
+            br_queue.extendleft(following)
 
-            # organization map filling part
-            response = urllib.request.urlopen(organizations_url)
-            output = response.read().decode('utf-8')
-            _json = json.loads(output)
-            for each in _json:
-                members = []
-                response = urllib.request.urlopen(each['members_url'][:-9])
-                output = response.read().decode('utf-8')
-                members_json = json.loads(output)
-                for each_member in members_json:
-                    members.append(each_member['login'])
-
-                br_queue.extend(members)
-                members_serialized = serialize_arr(members)
-                sql = "INSERT INTO orgs SELECT %s," + members_serialized +" WHERE NOT EXISTS (SELECT 1 FROM orgs WHERE login=%s);"
-                cursor.execute(sql, (each['login'],each['login'],))
-                organization_map[each['login']] = members
+            # # organization map filling part
+            # response = urllib.request.urlopen(organizations_url)
+            # if response.getcode() != 200:
+            #     return
+            #
+            # output = response.read().decode('utf-8')
+            # _json = json.loads(output)
+            # for each in _json:
+            #     members = []
+            #     response = urllib.request.urlopen(each['members_url'][:-9])
+            #
+            #     if response.getcode() != 200:
+            #         return
+            #
+            #     output = response.read().decode('utf-8')
+            #     members_json = json.loads(output)
+            #     for each_member in members_json:
+            #         members.append(each_member['login'])
+            #
+            #     br_queue.extend(members)
+            #     members_serialized = serialize_arr(members)
+            #     sql = "INSERT INTO orgs SELECT %s," + members_serialized + " WHERE NOT EXISTS (SELECT 1 FROM orgs WHERE login=%s);"
+            #     cursor.execute(sql, (each['login'], each['login'],))
+            #     organization_map[each['login']] = members
 
             # repo languages digging part
-            response = urllib.request.urlopen(repos_url)
-            output = response.read().decode('utf-8')
-            _json = json.loads(output)
-            for each in _json:
-                if each['language'] in languages_map:
-                    languages_map[each['language']] += 1
-                else:
-                    languages_map[each['language']] = 1
+            try:
+                iterator_repos = G.iter_user_repos(login)
+            except github3.models.GitHubError:
+                uname = input("uname: ")
+                upass = input("upass: ")
+                G = github3.login(username=uname, password=upass, token="X",
+                                  two_factor_callback=None)
+                iterator_repos = G.iter_user_repos(login)
+
+            for each in iterator_repos:
+                if each.language not in languages_set:
+                    languages_set.add(each.language)
 
             followers_serialized = serialize_arr(followers)
             followings_serialized = serialize_arr(following)
             organizations_serialized = serialize_arr(organization_map.keys())
-            languages_serialized = serialize_arr(languages_map.keys())
+            languages_serialized = serialize_arr(languages_set)
 
             sql = "INSERT INTO users SELECT %s," + followers_serialized + "," + \
                   followings_serialized + "," + languages_serialized + "," + organizations_serialized + " WHERE NOT EXISTS (SELECT 1 FROM users WHERE login=%s);"
-            cursor.execute(sql, (login,login,))
+            cursor.execute(sql, (login, login,))
             conn.commit()
+
+            print(login)
 
 
 if __name__ == "__main__":
