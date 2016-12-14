@@ -1,3 +1,0 @@
-username="furkansahin", password="", token="",
-
-                                                     
