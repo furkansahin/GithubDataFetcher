@@ -6,6 +6,10 @@ from collections import deque
 import github3
 
 
+graph = set()
+br_queue = deque()
+
+
 def serialize_arr(array):
     if len(array) == 0:
         return "NULL"
@@ -17,18 +21,7 @@ def serialize_arr(array):
     return serialized[:-1] + "]"
 
 
-def main():
-    G = github3.login(username="furkansahin", password="X", token="X",
-                      two_factor_callback=None)
-    # connect to db
-    connect_str = "dbname='GithubData' host='localhost'"
-    conn = psycopg2.connect(connect_str)
-    cursor = conn.cursor()
-
-    login = "furkansahin"
-    graph = set()
-    br_queue = deque()
-    br_queue.append(login)
+def main(br_queue,G):
 
     while len(br_queue) != 0:
         login = br_queue.pop()
@@ -38,14 +31,10 @@ def main():
             following = []
             count = 0
 
-            try:
-                iterator_follower = G.iter_followers(login)
-            except github3.models.GitHubError:
-                uname = input("uname: ")
-                upass = input("upass: ")
-                G = github3.login(username=uname, password=upass, token="X",
-                                  two_factor_callback=None)
-                iterator_follower = G.iter_followers(login)
+            company = G.user(login).company
+            if company and len(company) > 250:
+                company = company[:250]
+            iterator_follower = G.iter_followers(login)
 
             bool = False
 
@@ -58,15 +47,7 @@ def main():
                     bool = True
                     break
 
-            try:
-                iterator_following = G.iter_following(login)
-            except github3.models.GitHubError:
-                uname = input("uname: ")
-                upass = input("upass: ")
-                G = github3.login(username=uname, password=upass, token="b9a4f10e9eda529d094837981b931a2aea5ace99",
-                                  two_factor_callback=None)
-                iterator_following = G.iter_following(login)
-
+            iterator_following = G.iter_following(login)
 
             count = 0
             for f in iterator_following:
@@ -81,14 +62,7 @@ def main():
                 print(login + " ~~~~~~~~~~~~~~ ")
                 continue
 
-            try:
-                iterator_orgs = G.iter_orgs(login)
-            except github3.models.GitHubError:
-                uname = input("uname: ")
-                upass = input("upass: ")
-                G = github3.login(username=uname, password=upass, token="X",
-                                  two_factor_callback=None)
-                iterator_orgs = G.iter_orgs(login)
+            iterator_orgs = G.iter_orgs(login)
 
             organizations = []
 
@@ -97,46 +71,14 @@ def main():
 
             graph.add(login)
 
-            organization_map = {}
             languages_set = set()
 
             br_queue.extendleft(followers)
             br_queue.extendleft(following)
 
-            # # organization map filling part
-            # response = urllib.request.urlopen(organizations_url)
-            # if response.getcode() != 200:
-            #     return
-            #
-            # output = response.read().decode('utf-8')
-            # _json = json.loads(output)
-            # for each in _json:
-            #     members = []
-            #     response = urllib.request.urlopen(each['members_url'][:-9])
-            #
-            #     if response.getcode() != 200:
-            #         return
-            #
-            #     output = response.read().decode('utf-8')
-            #     members_json = json.loads(output)
-            #     for each_member in members_json:
-            #         members.append(each_member['login'])
-            #
-            #     br_queue.extend(members)
-            #     members_serialized = serialize_arr(members)
-            #     sql = "INSERT INTO orgs SELECT %s," + members_serialized + " WHERE NOT EXISTS (SELECT 1 FROM orgs WHERE login=%s);"
-            #     cursor.execute(sql, (each['login'], each['login'],))
-            #     organization_map[each['login']] = members
-
             # repo languages digging part
-            try:
-                iterator_repos = G.iter_user_repos(login)
-            except github3.models.GitHubError:
-                uname = input("uname: ")
-                upass = input("upass: ")
-                G = github3.login(username=uname, password=upass, token="X",
-                                  two_factor_callback=None)
-                iterator_repos = G.iter_user_repos(login)
+
+            iterator_repos = G.iter_user_repos(login)
 
             for each in iterator_repos:
                 if each.language not in languages_set:
@@ -144,16 +86,35 @@ def main():
 
             followers_serialized = serialize_arr(followers)
             followings_serialized = serialize_arr(following)
-            organizations_serialized = serialize_arr(organization_map.keys())
+            organizations_serialized = serialize_arr(organizations)
             languages_serialized = serialize_arr(languages_set)
 
-            sql = "INSERT INTO users SELECT %s," + followers_serialized + "," + \
+            sql = "INSERT INTO users SELECT %s, %s," + followers_serialized + "," + \
                   followings_serialized + "," + languages_serialized + "," + organizations_serialized + " WHERE NOT EXISTS (SELECT 1 FROM users WHERE login=%s);"
-            cursor.execute(sql, (login, login,))
+            cursor.execute(sql, (login, company, login,))
             conn.commit()
 
             print(login)
 
 
 if __name__ == "__main__":
-    main()
+    # connect to db
+    connect_str = "dbname='GithubData' host='localhost'"
+    conn = psycopg2.connect(connect_str)
+    cursor = conn.cursor()
+
+    # github connection
+    login = input("uname: ")
+    login_pass = input("upass: ")
+    token = input("token: ")
+    br_queue.append(login)
+    G = github3.login(username=login, password=login_pass, token=token,
+                      two_factor_callback=None)
+    while True:
+        try:
+            main(br_queue, G)
+        except github3.models.GitHubError:
+            uname = input("uname: ")
+            upass = input("upass: ")
+            G = github3.login(username=uname, password=upass, token=token,
+                                      two_factor_callback=None)
