@@ -16,15 +16,21 @@ def serialize_arr(array):
     serialized = "ARRAY["
 
     for i in array:
+        if i == "Ren'Py":
+            i = "Ren''Py"
         serialized += "\'" + str(i) + "\',"
 
     return serialized[:-1] + "]"
 
 
 def main(br_queue,G):
+    br_queue.appendleft(" ")
 
-    while len(br_queue) != 0:
+    level = 0
+    while len(br_queue) != 0 and level < 3:
         login = br_queue.pop()
+
+        print(login)
 
         if login not in graph:
             followers = []
@@ -94,7 +100,6 @@ def main(br_queue,G):
             cursor.execute(sql, (login, company, login,))
             conn.commit()
 
-            print(login)
 
 
 if __name__ == "__main__":
@@ -102,6 +107,20 @@ if __name__ == "__main__":
     connect_str = "dbname='GithubData' host='localhost'"
     conn = psycopg2.connect(connect_str)
     cursor = conn.cursor()
+
+    sql = "SELECT * FROM users;"
+    cursor.execute(sql)
+    conn.commit()
+
+    for record in cursor:
+        graph.add(record[0].strip())
+        if record[2]:
+            for each in record[2]:
+                br_queue.appendleft(str(each))
+
+        if record[3]:
+            for each in record[3]:
+                br_queue.appendleft(str(each))
 
     # github connection
     login = input("uname: ")
