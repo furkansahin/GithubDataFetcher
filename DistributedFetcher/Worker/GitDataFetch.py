@@ -1,15 +1,9 @@
-import getpass
-import urllib.request
-import json
+import sys
 import hazelcast
 import psycopg2
-from collections import deque
 import github3
-
-
-graph = set()
-br_queue = deque()
-
+import time
+exit_code = "%%%%%%%%%%%"
 
 def serialize_arr(array):
     if len(array) == 0:
@@ -24,82 +18,88 @@ def serialize_arr(array):
     return serialized[:-1] + "]"
 
 
-def main(br_queue,G):
-    br_queue.appendleft(" ")
+def main(br_queue, new_queue, graph_set,lock, G):
 
-    level = 0
-    while len(br_queue) != 0 and level < 3:
-        login = br_queue.pop()
+    while True:
 
-        print(login)
+        print "loop is running"
 
-        if login not in graph:
-            followers = []
-            following = []
-            count = 0
+        while lock.is_locked():
+            print "waiting"
+            time.sleep(2)
 
-            company = G.user(login).company
-            if company and len(company) > 250:
-                company = company[:250]
-            iterator_follower = G.iter_followers(login)
+        login = br_queue.poll(5)
+        if login == exit_code:
+            sys.exit()
 
-            bool = False
+        if login:
+            if not graph_set.contains(login):
+                followers = []
+                following = []
+                count = 0
 
-            # weird!
+                company = G.user(login).company
+                if company and len(company) > 250:
+                    company = company[:250]
+                iterator_follower = G.iter_followers(login)
 
-            for f in iterator_follower:
-                followers.append(str(f))
-                count += 1
-                if count > 350:
-                    bool = True
-                    break
+                bool = False
 
-            iterator_following = G.iter_following(login)
+                # weird!
 
-            count = 0
-            for f in iterator_following:
-                following.append(str(f))
-                count += 1
-                if count > 350:
-                    bool = True
-                    break
+                for f in iterator_follower:
+                    followers.append(str(f))
+                    count += 1
+                    if count > 350:
+                        bool = True
+                        break
 
-            if bool:
-                graph.add(login)
-                print(login + " ~~~~~~~~~~~~~~ ")
-                continue
+                iterator_following = G.iter_following(login)
 
-            iterator_orgs = G.iter_orgs(login)
+                count = 0
+                for f in iterator_following:
+                    following.append(str(f))
+                    count += 1
+                    if count > 350:
+                        bool = True
+                        break
 
-            organizations = []
+                if bool:
+                    graph_set.add(login)
+                    print(login + " ~~~~~~~~~~~~~~ ")
+                    continue
 
-            for f in iterator_orgs:
-                organizations.append(str(f))
+                iterator_orgs = G.iter_orgs(login)
 
-            graph.add(login)
+                organizations = []
 
-            languages_set = set()
+                for f in iterator_orgs:
+                    organizations.append(str(f))
 
-            br_queue.extendleft(followers)
-            br_queue.extendleft(following)
+                graph_set.add(login)
 
-            # repo languages digging part
+                languages_set = set()
 
-            iterator_repos = G.iter_user_repos(login)
+                new_queue.add_all(followers)
+                new_queue.add_all(following)
 
-            for each in iterator_repos:
-                if each.language not in languages_set:
-                    languages_set.add(each.language)
+                # repo languages digging part
 
-            followers_serialized = serialize_arr(followers)
-            followings_serialized = serialize_arr(following)
-            organizations_serialized = serialize_arr(organizations)
-            languages_serialized = serialize_arr(languages_set)
+                iterator_repos = G.iter_user_repos(login)
 
-            sql = "INSERT INTO users SELECT %s, %s," + followers_serialized + "," + \
-                  followings_serialized + "," + languages_serialized + "," + organizations_serialized + " WHERE NOT EXISTS (SELECT 1 FROM users WHERE login=%s);"
-            cursor.execute(sql, (login, company, login,))
-            conn.commit()
+                for each in iterator_repos:
+                    if each.language not in languages_set:
+                        languages_set.add(each.language)
+
+                followers_serialized = serialize_arr(followers)
+                followings_serialized = serialize_arr(following)
+                organizations_serialized = serialize_arr(organizations)
+                languages_serialized = serialize_arr(languages_set)
+
+                sql = "INSERT INTO users SELECT %s, %s," + followers_serialized + "," + \
+                      followings_serialized + "," + languages_serialized + "," + organizations_serialized + " WHERE NOT EXISTS (SELECT 1 FROM users WHERE login=%s);"
+                cursor.execute(sql, (login, company, login,))
+                conn.commit()
 
 
 
@@ -109,32 +109,37 @@ if __name__ == "__main__":
     conn = psycopg2.connect(connect_str)
     cursor = conn.cursor()
 
-    sql = "SELECT * FROM users;"
-    cursor.execute(sql)
-    conn.commit()
+    #Hazelcast Connections
+    config = hazelcast.ClientConfig()
+    config.group_config.name = "app1"
+    config.group_config.password = "app1-pass"
+    config.network_config.addresses.append('192.168.0.22:5701')
+    config.network_config.addresses.append('localhost')
+    config.network_config.addresses.append('127.0.0.1')
+    client = hazelcast.HazelcastClient(config)
 
-    for record in cursor:
-        graph.add(record[0].strip())
-        if record[2]:
-            for each in record[2]:
-                br_queue.appendleft(str(each))
+    credentials = client.get_queue("Credentials").blocking()
+    infomap = client.get_map("infoMap").blocking()
+    token = infomap.get("token")
+    exit_code =  infomap.get("exit")
 
-        if record[3]:
-            for each in record[3]:
-                br_queue.appendleft(str(each))
+    logcre = credentials.poll().split("||")
+    login = logcre[0]
+    login_pass = logcre[1]
 
-    # github connection
-    login = input("uname: ")
-    login_pass = input("upass: ")
-    token = input("token: ")
-    br_queue.append(login)
+    br_queue = client.get_queue("BreadthSearch").blocking()
+    new_queue = client.get_queue("NewQueue").blocking()
+    graph_set = client.get_set("GraphSet").blocking()
+
+    lock = client.get_lock("QueueLock").blocking()
     G = github3.login(username=login, password=login_pass, token=token,
                       two_factor_callback=None)
     while True:
         try:
-            main(br_queue, G)
+            main(br_queue, new_queue, graph_set,lock, G)
         except github3.models.GitHubError:
-            uname = input("uname: ")
-            upass = input("upass: ")
+            logcre = credentials.poll().split("||")
+            uname = logcre[0]
+            upass = logcre[1]
             G = github3.login(username=uname, password=upass, token=token,
                                       two_factor_callback=None)

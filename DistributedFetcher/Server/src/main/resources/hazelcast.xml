@@ -1,0 +1,21 @@
+<hazelcast xsi:schemaLocation="http://www.hazelcast.com/schema/config hazelcast-config-3.7.xsd"
+           xmlns="http://www.hazelcast.com/schema/config"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <group>
+        <name>app1</name>
+        <password>app1-pass</password>
+    </group>
+
+    <network>
+        <join>
+            <aws enabled="false">
+            </aws>
+            <multicast enabled="true">
+            </multicast>
+            <tcp-ip enabled="false">
+                <member>138.68.64.240:5701</member>
+            </tcp-ip>
+        </join>
+    </network>
+
+</hazelcast>
