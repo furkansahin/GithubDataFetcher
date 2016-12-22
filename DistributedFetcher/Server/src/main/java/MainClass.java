@@ -10,7 +10,7 @@ public class MainClass {
 
     public static int counter = 0;
     public static int level = 0;
-
+    public static boolean quit = false;
     public static HazelcastInstance hzServer;
     public static IQueue<String> firstQueue;
     public static IQueue<String> secondQueue;
@@ -25,13 +25,13 @@ public class MainClass {
 
     public static void increaseLevel (){
 
-        if(level == 2) {
+        if(level == 1) {
             firstQueue.clear();
             while (!hzServer.getClientService().getConnectedClients().isEmpty()) {
                 System.out.println("Trying to shutdown clients:");
                 firstQueue.add(exitCode);
             }
-
+            quit = true;
             System.out.println("Progress complete.");
             hzServer.shutdown();
             return;
@@ -58,6 +58,9 @@ public class MainClass {
                 if(counter  > 10) {
                     increaseLevel();
                 }
+
+                if(quit)
+                    t.cancel();
             }
         },1000,1000);
     }
@@ -100,10 +103,17 @@ public class MainClass {
         myLock = hzServer.getLock("QueueLock");
         myLock.forceUnlock();
 
+        hzServer.getClientService().addClientListener(new ClientListener() {
+            @Override
+            public void clientConnected(Client client) {
+                progress();
+            }
+
+            @Override
+            public void clientDisconnected(Client client) {
+            }
+        });
         System.out.println("Setup is done. ");
-
-        progress();
-
 
     }
 
