@@ -105,7 +105,7 @@ def main(br_queue, new_queue, graph_set,lock, G):
 
 if __name__ == "__main__":
     # connect to db
-    connect_str = "dbname='GithubData' host='localhost' user='datauser' password='datapass'"
+    connect_str = "dbname='GithubData' host='localhost' user='datauser' password='datapassword'"
     conn = psycopg2.connect(connect_str)
     cursor = conn.cursor()
 
@@ -113,9 +113,7 @@ if __name__ == "__main__":
     config = hazelcast.ClientConfig()
     config.group_config.name = "app1"
     config.group_config.password = "app1-pass"
-    config.network_config.addresses.append('192.168.0.22:5701')
-    config.network_config.addresses.append('localhost')
-    config.network_config.addresses.append('127.0.0.1')
+    config.network_config.addresses.append('207.154.200.83:5701')
     client = hazelcast.HazelcastClient(config)
 
     credentials = client.get_queue("Credentials").blocking()
