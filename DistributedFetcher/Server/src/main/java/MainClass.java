@@ -25,7 +25,7 @@ public class MainClass {
 
     public static void increaseLevel (){
 
-        if(level == 3) {
+        if(level == 2) {
             firstQueue.clear();
             while (!hzServer.getClientService().getConnectedClients().isEmpty()) {
                 System.out.println("Trying to shutdown clients:");
@@ -74,11 +74,8 @@ public class MainClass {
 
         credentials = hzServer.getQueue("Credentials");
 
-        addUser("furkansahin","mfsahin12");
-        addUser("oguzdemir","odemir12");
-        addUser("oguzdemir","odemir12");
-        addUser("oguzdemir","odemir12");
-        addUser("oguzdemir","odemir12");
+        addUser("githubfetcher1","fetcher12");
+        addUser("githubfetcher2","fetcher12");
 
         firstQueue = hzServer.getQueue("BreadthSearch");
         secondQueue = hzServer.getQueue("NewQueue");

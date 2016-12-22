@@ -10,10 +10,9 @@
         <join>
             <aws enabled="false">
             </aws>
-            <multicast enabled="true">
+            <multicast enabled="false">
             </multicast>
-            <tcp-ip enabled="false">
-                <member>138.68.64.240:5701</member>
+            <tcp-ip enabled="true">
             </tcp-ip>
         </join>
     </network>
