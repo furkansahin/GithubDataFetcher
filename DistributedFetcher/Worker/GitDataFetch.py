@@ -105,7 +105,7 @@ def main(br_queue, new_queue, graph_set,lock, G):
 
 if __name__ == "__main__":
     # connect to db
-    connect_str = "dbname='GithubData' host='localhost'"
+    connect_str = "dbname='GithubData' host='localhost' user='datauser' password='datapass'"
     conn = psycopg2.connect(connect_str)
     cursor = conn.cursor()
 
