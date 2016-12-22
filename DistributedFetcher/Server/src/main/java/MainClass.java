@@ -19,13 +19,16 @@ public class MainClass {
     public static String exitCode;
     public static String token;
 
+    public static final int maxCounter = 20;
+    public static final int desiredLevel = 2;
+
     public static void addUser (String username, String password) {
         credentials.add(username + "||" + password);
     }
 
     public static void increaseLevel (){
 
-        if(level == 1) {
+        if(level == desiredLevel) {
             firstQueue.clear();
             while (!hzServer.getClientService().getConnectedClients().isEmpty()) {
                 System.out.println("Trying to shutdown clients:");
@@ -34,6 +37,12 @@ public class MainClass {
             quit = true;
             System.out.println("Progress complete.");
             hzServer.shutdown();
+            return;
+        }
+        if (hzServer.getClientService().getConnectedClients().isEmpty()) {
+            System.out.println("Process is interrupted with worker quit ");
+            hzServer.shutdown();
+            quit = true;
             return;
         }
         myLock.lock();
@@ -55,7 +64,7 @@ public class MainClass {
             public void run() {
                 counter++;
                 System.out.println("Counting:" + counter);
-                if(counter  > 10) {
+                if(counter  > maxCounter) {
                     increaseLevel();
                 }
 
@@ -111,6 +120,8 @@ public class MainClass {
 
             @Override
             public void clientDisconnected(Client client) {
+                if (hzServer.getClientService().getConnectedClients().isEmpty())
+                    counter = maxCounter + 1;
             }
         });
         System.out.println("Setup is done. ");
