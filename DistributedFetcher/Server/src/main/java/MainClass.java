@@ -20,13 +20,15 @@ public class MainClass {
     public static String token;
 
     public static final int maxCounter = 20;
-    public static final int desiredLevel = 2;
+    public static final int desiredLevel = 1;
 
     public static void addUser (String username, String password) {
         credentials.add(username + "||" + password);
     }
 
     public static void increaseLevel (){
+        System.out.println("\n\n\n========================\n\n Current Level is: " + level + " \n Desired level is" +
+                + desiredLevel);
 
         if(level == desiredLevel) {
             firstQueue.clear();
@@ -45,6 +47,7 @@ public class MainClass {
             quit = true;
             return;
         }
+        myLock.forceUnlock();
         myLock.lock();
 
         firstQueue.addAll(secondQueue);

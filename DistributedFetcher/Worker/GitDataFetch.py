@@ -114,6 +114,7 @@ if __name__ == "__main__":
     config.group_config.name = "app1"
     config.group_config.password = "app1-pass"
     config.network_config.addresses.append('207.154.200.83:5701')
+    config.network_config.addresses.append('207.154.200.83')
     client = hazelcast.HazelcastClient(config)
 
     credentials = client.get_queue("Credentials").blocking()
@@ -121,7 +122,7 @@ if __name__ == "__main__":
     token = infomap.get("token")
     exit_code =  infomap.get("exit")
 
-    logcre = crendentials.poll()
+    logcre = credentials.poll()
     if not logcre:
         print "No login crendentials"
         exit(2)
@@ -141,7 +142,7 @@ if __name__ == "__main__":
             main(br_queue, new_queue, graph_set,lock, G)
         except github3.models.GitHubError:
             credentials = client.get_queue("Credentials").blocking()
-            logcre = crendentials.poll()
+            logcre = credentials.poll()
             if not logcre:
                 print "No login crendentials"
                 exit(2)
