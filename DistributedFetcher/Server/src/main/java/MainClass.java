@@ -88,7 +88,10 @@ public class MainClass {
 
         addUser("githubfetcher1","fetcher12");
         addUser("githubfetcher2","fetcher12");
-
+        addUser("githubfetcher1","fetcher12");
+        addUser("githubfetcher2","fetcher12");
+        addUser("githubfetcher1","fetcher12");
+        addUser("githubfetcher2","fetcher12");
         firstQueue = hzServer.getQueue("BreadthSearch");
         secondQueue = hzServer.getQueue("NewQueue");
 

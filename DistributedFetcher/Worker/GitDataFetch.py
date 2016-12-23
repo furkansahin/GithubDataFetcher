@@ -121,7 +121,11 @@ if __name__ == "__main__":
     token = infomap.get("token")
     exit_code =  infomap.get("exit")
 
-    logcre = credentials.poll().split("||")
+    logcre = crendentials.poll()
+    if not logcre:
+        print "No login crendentials"
+        exit(2)
+    logcre = logcre.split("||")
     login = logcre[0]
     login_pass = logcre[1]
 
@@ -136,7 +140,12 @@ if __name__ == "__main__":
         try:
             main(br_queue, new_queue, graph_set,lock, G)
         except github3.models.GitHubError:
-            logcre = credentials.poll().split("||")
+            credentials = client.get_queue("Credentials").blocking()
+            logcre = crendentials.poll()
+            if not logcre:
+                print "No login crendentials"
+                exit(2)
+            logcre = logcre.split("||")
             uname = logcre[0]
             upass = logcre[1]
             G = github3.login(username=uname, password=upass, token=token,
